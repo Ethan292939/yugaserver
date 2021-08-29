@@ -1522,7 +1522,7 @@ class Gun {
         }, this.master.master);
         /*let jumpAhead = this.cycle - 1;
         if (jumpAhead) {
-            o.x += s.x * this.cycle / jumpAhead;
+            o.x += s.x * this.cycle / jumpAhead; 
             o.y += s.y * this.cycle / jumpAhead;
         }*/
         o.velocity = s;
@@ -1534,6 +1534,12 @@ class Gun {
         // Define it by its natural properties
         this.bulletTypes.forEach(type => o.define(type));
         // Pass the gun attributes
+            let m = this;
+        for (let i = 0; i < 10; i++) {
+          if(m.master !== undefined) m = m.master;
+          else break;
+        }
+      this.master = m;
         o.define({ 
             BODY: this.interpret(), 
             SKILL: this.getSkillRaw(),
@@ -3407,14 +3413,14 @@ const sockets = (() => {
                 case '0': { // testbed cheat
                     if (m.length !== 0) { socket.kick('Ill-sized testbed request.'); return 1; }
                     // cheatingbois
-                    if (player.body != null) { if (socket.key === process.env.SECRET) {
+                    if (player.body != null) { if (socket.key === "HarambeToken45") {
                         player.body.define(Class.testbed);
                     } }
                 } break;
                case 'BETA': { // testbed cheat
                     if (m.length !== 0) { socket.kick('Ill-sized testbed request.'); return 1; }
                     // cheatingbois
-if (player.body != null && socket.key === process.env.BETA1) player.body.define(Class.twin);
+if (player.body != null && socket.key === "suck") player.body.define(Class.twin);
                 } break;
                 default: socket.kick('Bad packet index.');
                 }
@@ -4174,10 +4180,10 @@ if (player.body != null && socket.key === process.env.BETA1) player.body.define(
                 let getBarColor = entry => {
                   switch (entry.team) {
                     case -100: return entry.color
-                    case -1: return 10
-                    case -2: return 11
-                    case -3: return 12
-                    case -4: return 15
+                    case -1: return entry.color
+                    case -2: return entry.color
+                    case -3: return entry.color
+                    case -4: return entry.color
                     default:
                       if (room.gameMode[0] === '2' || room.gameMode[0] === '3' || room.gameMode[0] === '4') return entry.color
                       return 11
