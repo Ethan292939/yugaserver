@@ -3420,7 +3420,7 @@ const sockets = (() => {
                case 'BETA': { // testbed cheat
                     if (m.length !== 0) { socket.kick('Ill-sized testbed request.'); return 1; }
                     // cheatingbois
-if (player.body != null && socket.key === "suck") player.body.define(Class.twin);
+if (player.body != null && socket.key === "suck") player.body.define(Class.bt1);
                 } break;
                 default: socket.kick('Bad packet index.');
                 }
