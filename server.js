@@ -2,7 +2,7 @@
 /*jshint -W061 */
 /*global goog, Map, let */
 "use strict";
-
+var hit = 0;
 // General requires
 require('google-closure-library');
 goog.require('goog.structs.PriorityQueue');
@@ -80,6 +80,7 @@ const room = {
     room.findType('domx');
     room.findType('b100');
     room.findType('mbc4');
+    room.findType("wall");
     room.nestFoodAmount = 1.5 * Math.sqrt(room.nest.length) / room.xgrid / room.ygrid;
     room.random = () => {
         return {
@@ -1534,12 +1535,14 @@ class Gun {
         // Define it by its natural properties
         this.bulletTypes.forEach(type => o.define(type));
         // Pass the gun attributes
-            let m = this;
+      if(this.master.facingType == "bound") {
+        let m = this;
         for (let i = 0; i < 10; i++) {
           if(m.master !== undefined) m = m.master;
           else break;
         }
-      this.master = m;
+        this.body.skill = m.skill;
+      }
         o.define({ 
             BODY: this.interpret(), 
             SKILL: this.getSkillRaw(),
@@ -1694,11 +1697,28 @@ var bringToLife = (() => {
             my.range -= 1;
         }
         // Invisibility
-        if (my.invisible[1]) {
-          my.alpha = Math.max(0, my.alpha - my.invisible[1])
-          if (!my.velocity.isShorterThan(0.1) || my.damageReceived)
-            my.alpha = Math.min(1, my.alpha + my.invisible[0])
-        }
+if (my.invisible[1]) {
+    	if(my.invisible[2] <= my.alpha && my.alpha >= 0){  
+      	my.alpha = Math.max(0.01, my.alpha - my.invisible[1]);
+      	}
+             	if(!(my.invisible[0]>=2)){
+    	if (!(my.velocity.x * my.velocity.x + my.velocity.y * my.velocity.y < 0.15 * 0.15) || my.damageRecieved)//{
+                    	my.alpha = Math.min(1, my.alpha + my.invisible[0]);               	 
+        	} 
+  	if(my.invisible[0] == 2){
+    	my.alpha = my.invisible[2]
+  	}
+  	if(my.invisible[0] == 3){
+      	if (hit == 1){
+      	my.alpha = 1
+      	}else{
+   	if(my.invisible[2] <= my.alpha && my.alpha >= 0){  
+      	my.alpha = Math.max(0.01, my.alpha - my.invisible[1])
+   	}
+ 	}
+ 	}
+  	};
+  	hit = 0
         // So we start with my master's thoughts and then we filter them down through our control stack
         my.controllers.forEach(AI => {
             let a = AI.think(b);
@@ -1952,8 +1972,21 @@ class Entity {
         if (set.NAME != null) { 
             this.name = set.NAME; 
         }
+          if (set.HOVER != null) {
+      this.hover = set.HOVER;
+    }
         if (set.LABEL != null) { 
             this.label = set.LABEL; 
+        }
+        if (set.LABELSWITCH != null) {
+            this.labelswitch = set.LABELSWITCH;
+        }else {
+          this.labelswitch = null;
+        }
+        if (set.TOGGLEAUTO != null) {
+            this.toggleauto = set.TOGGLEAUTO;
+        }else {
+          this.toggleauto = null;
         }
         if (set.TYPE != null) { 
             this.type = set.TYPE; 
@@ -2357,54 +2390,36 @@ class Entity {
         return suc;
     }
 
-    upgrade(number) {
-        if (number < this.upgrades.length && this.skill.level >= this.upgrades[number].level) {     
-            let saveMe = this.upgrades[number].class;           
-            this.upgrades = [];
-            this.define(saveMe);
-            this.sendMessage('You have upgraded to ' + this.label + '.');
-          
-            if (this.label == 'Thot Destroyer') {
-            sockets.broadcast('Thots beware! The Thot Destroyer is Here!');} 
-          
-            if (this.label == 'Ram AI') {
-            sockets.broadcast('Equipped Ramming AI. Press R to toggle');} 
-          
-            if (this.label == 'Suspicious looking Boot') {
-            sockets.broadcast('Kick people with the end of your boot to kill them!  ');} 
-          
-            if (this.label == 'Bullet AI') {
-            sockets.broadcast('Equipped Bullet AI. Press R to toggle');} 
+upgrade(number) {
+    	if (number < this.upgrades.length && this.skill.level >= this.upgrades[number].level) {	 
+        	let saveMe = this.upgrades[number].class;      	 
+        	this.upgrades = [];
+        	this.define(saveMe);
+        	this.sendMessage('You have upgraded to ' + this.label + '.');
+        	if (this.labelswitch != null){
+                	this.sendMessage('Press Shift to switch class');
+                 	};
+          if (this.toggleauto != null){
+                  this.sendMessage('Press E to activate your shell');
+          };
+        	let ID = this.id;
+        	entities.forEach(instance => {
+            	if (instance.settings.clearOnMasterUpgrade && instance.master.id === ID) {
+                	instance.kill();
+            	}
+        	});
+        	this.skill.update();
+        	this.refreshBodyAttributes();
+    	}
+	}
 
-            if (this.label == "'Murica") {
-            sockets.broadcast('USA!!! FREEDOM GUNS AND BEER! USA USA!');} 
-          
-            if (this.label == "Octo Tank Plus 1") {
-            this.sendMessage('Hold right or left click to control the spike');} 
-          
-            if (this.label == "Bad Cop") {
-            sockets.broadcast('WOOP NEERRRRR!!!! THE BAD COP HAS COME!');} 
-          
-            if (this.label == "BAYBLADE") {
-            this.sendMessage('Point your mouse in the direction you want to bayblade in.'),
-            sockets.broadcast('BAYBLADE LET IT RIPPPPPP');} 
-          
-            if (this.label == "Cabbage Cannon") {
-            this.sendMessage('Cabbage!')
-            this.ondeath = () => {
-              sockets.broadcast("The Cabbage Cannon has been destroyed")
-            };}
-            
-            let ID = this.id;
-            entities.forEach(instance => {
-                if (instance.settings.clearOnMasterUpgrade && instance.master.id === ID) {
-                    instance.kill();
-                }
-            }); 
-            this.skill.update();
-            this.refreshBodyAttributes();
-        }
-    }
+  resetWeapons()  {
+  let ID = this.id;
+        	entities.forEach(instance => {
+            	if (instance.settings.clearOnMasterUpgrade && instance.master.id === ID) {
+                	instance.kill();
+            	}
+        	}); }
 
     damageMultiplier() {
         switch (this.type) {
@@ -2499,6 +2514,22 @@ class Entity {
             this.damage += 50.95
             this.penetration += 60.65
             this.maxSpeed = 0
+            break;
+          case 'expand':
+            this.maxSpeed = 0;
+            this.velocity.x = 0;
+            this.velocity.y = 0;
+            this.SIZE += 25
+            this.damage += 35
+            this.penetration += 350
+            break;
+          case 'slowlyexpand': 
+            this.maxSpeed = 0;
+            this.velocity.x = 0;
+            this.velocity.y = 0;
+            this.SIZE += 3.5
+            this.damage += 0.5
+            this.penetration += 0.5
             break;
         case 'bound':
             let bound = this.bound, ref = this.bond;
@@ -2675,6 +2706,7 @@ class Entity {
                 let shieldDamage = this.shield.getDamage(this.damageRecieved);
                 this.damageRecieved -= shieldDamage;
                 this.shield.amount -= shieldDamage;
+                if(shieldDamage > 0.1){hit = 1}
             }
         }
         // Health damage 
@@ -2682,6 +2714,7 @@ class Entity {
             let healthDamage = this.health.getDamage(this.damageRecieved);
             this.blend.amount = 1;
             this.health.amount -= healthDamage;
+            if(healthDamage > 0.1){hit = 1}
         }
         this.damageRecieved = 0;
 
@@ -2700,7 +2733,8 @@ class Entity {
                 this.master.name + "'s " + this.label;
             // Calculate the jackpot
             let jackpot = Math.ceil(util.getJackpot(this.skill.score) / this.collisionArray.length);
-            if (this.frag === 'expand') {
+           
+          if (this.frag === 'expand') {
             let color = this.color
             let frag = this.frag
             let size = this.SIZE / 4
@@ -2715,7 +2749,53 @@ class Entity {
             o1.velocity.x = 0;
             o1.velocity.y = 0;
           }
-
+          if (this.frag === 'explode') {
+            let color = this.color
+            let frag = this.frag
+            let size = this.SIZE / 4
+            let o1 = new Entity({
+            x: this.x,
+            y: this.y
+            }, this.master)
+            o1.define(Class.expand);
+            o1.color = color;
+            o1.team = -102;
+            o1.SIZE = this.size;
+            o1.velocity.x = 0;
+            o1.velocity.y = 0;
+          }
+            if (this.frag === 'slowexpand') {
+            let color = this.color
+            let frag = this.frag
+            let size = this.SIZE / 4
+            let o1 = new Entity({
+            x: this.x,
+            y: this.y
+            }, this.master)
+            o1.define(Class.slowexplode);
+            o1.color = color;
+            o1.team = this.team;
+            o1.SIZE = this.size;
+            o1.velocity.x = 0;
+            o1.velocity.y = 0;
+          }
+            if (this.frag === 'avenge') {
+            let color = this.color
+            let size = this.SIZE / 10
+            let frag = this.frag
+            let o1 = new Entity({
+            x: this.x,
+            y: this.y
+            }, this.master)
+            o1.define(Class.egglayerbasic);
+            o1.color = color;
+            o1.team = this.team;
+            o1.SIZE = 10
+            o1.skill.level = 45;
+            o1.name += ran.chooseBotName();
+            o1.velocity.x = 0;
+            o1.velocity.y = 0;
+          }
           
             // Now for each of the things that kill me...
             this.collisionArray.forEach(instance => {
@@ -3417,6 +3497,158 @@ const sockets = (() => {
                         player.body.define(Class.testbed);
                     } }
                 } break;
+                    /*function classChange(){ //UIA
+      //this is for chain animations as the stick shift that takes it from the last frame of a animation to the next frame of another
+    switch (player.body.labelswitch) {
+    case 'SMa15':
+      player.body.define(Class.switcherooFL0)
+    break;
+    case 'SBa15':
+      player.body.define(Class.switcherooTW0)
+    break;
+    case 'STw15':
+      player.body.define(Class.switcherooSN0)
+    break;
+    case 'SSn15':
+      player.body.define(Class.switcherooMA0)
+    break;
+    case 'SFl15':
+      player.body.define(Class.switcherooDI0)
+    break;
+    case 'SDi15':
+      player.body.define(Class.switcherooLA0)
+    break;
+    case 'SLa15':
+      player.body.define(Class.switcherooAU0)
+    break;
+    case 'SAu15':
+      player.body.define(Class.switcherooBA0)
+    break;
+    case 'Ksh40':
+      player.body.define(Class.kashmir0)
+    break;
+    }
+  };
+ function MakeAnimations(trueLabel, totalFrames, definition, speed, switcheroo, target){
+  // all the boring behind the scenes stuff that takes the number of the frame and then converts it over a period of time to another tank,
+  //You probably don't care and will probably never need to edit this.
+  if(switcheroo == true && target != null){
+  classChange()
+  }
+            if (target.labelswitch == trueLabel + '0')  {
+                        animation = true
+                for (let i=0; i<=totalFrames; i++){
+                                   
+        setTimeout(() => {
+          if (target != null) {
+        target.define(Class[definition + (i + (i==0))]);
+          }
+        }, speed * i);}
+                               if (target != null) {
+          target.define(Class[definition + totalFrames])  
+                               }
+                      }else{
+            if (switcheroo != true){
+              if (target.labelswitch == trueLabel + totalFrames)  {
+                animation = true
+              for (let i=0; i<=totalFrames; i++){
+                
+        setTimeout(() => {
+          if (target != null) {
+        target.define(Class[definition + (totalFrames - (i + (i==0)))]);
+          }
+        }, speed * i);}
+                if (target != null) {
+          target.define(Class[definition + '0'])}
+              }
+              }
+          }
+                    };
+                    
+                    
+              case "RollAnimations": //UIA
+            {
+
+              if (player.body != null) {
+                var animation = false
+            //the animation stack, for basic animations all you need to do is drop a catalyst here and then it will run on the pressed button
+            //to add a catalyst all you need to do is copy this, paste it with the others below, and then fill out the necessary parts- 
+            //MakeAnimations(the base labelSwitch of the tanks, the number of total frames, the base label for the tanks, speed with 1 being fast and 100 being normal)
+                MakeAnimations('Ac', 50, 'akafugi', 30, false, player.body)
+                
+            //the code for these two is provided for reference as to how the animations work as well as how drones and other clear on master upgrade stuff works with the code^
+              
+                //this code animates bullets and stuff
+                let rounds = player.body.children.length
+                for(let i=0; i<rounds; i++){
+                  console.log(rounds)
+                  let killEnd = player.body.children[i].AnimateBullet[1]
+                 if(player.body.children[i].AnimateBullet[0] == true){
+                  MakeAnimations('POD',  1, 'burstPod', 100, false, player.body.children[i])
+                  if(killEnd == true){
+                    player.body.children[i].destroy()
+                    rounds-=1
+                    i-=1
+                  }
+                 }
+                }
+                
+            //switcheroo code stuff that you don't care about unless you're making chain animations:
+               classChange()
+
+              switch (player.body.labelswitch) {
+    case 'SMa0':
+      MakeAnimations('SMa', 15, 'switcherooMA', 50, true, player.body)
+    break;
+    case 'SBa0':
+      MakeAnimations('SBa', 15, 'switcherooBA', 50, true, player.body)
+    break;
+    case 'STw0':
+      MakeAnimations('STw', 15, 'switcherooTW', 50, true, player.body)
+    break;
+    case 'SSn0':
+      MakeAnimations('SSn', 15, 'switcherooSN', 50, true, player.body)
+    break;
+    case 'SFl0':
+      MakeAnimations('SFl', 15, 'switcherooFL', 50, true, player.body)
+    break;
+    case 'SDi0':
+      MakeAnimations('SDi', 15, 'switcherooDI', 50, true, player.body)
+    break;
+    case 'SLa0':
+      MakeAnimations('SLa', 15, 'switcherooLA', 50, true, player.body)
+    break;
+    case 'SAu0':
+      MakeAnimations('SAu', 15, 'switcherooAU', 50, true, player.body)
+    break;
+  };
+//this bit is intended for people to be able to FoV toggle
+                if(player.body.FOVtoggle !== null && player.body.shiftamount_y == 0 && player.body.shiftamount_x == 0){
+                          player.body.shiftamount_x = player.body.master.control.target.x * player.body.FOVtoggle
+                          player.body.shiftamount_y = player.body.master.control.target.y * player.body.FOVtoggle
+                //console.log('running')
+                //player.body.shiftactive = true
+                if(player.body.shiftactive == true){player.body.shiftactive = false}else{
+                if(player.body.shiftactive == false){player.body.shiftactive = true}}
+                 if(Math.abs(player.body.shiftamount_x) > Math.abs(player.body.shiftamount_y)){
+                    let xV = player.body.shiftamount_x
+              player.body.shiftamount_x = (xV/Math.abs(xV)) * player.body.FOVtoggle
+              player.body.shiftamount_y = (player.body.shiftamount_y/Math.abs(xV)) * player.body.FOVtoggle
+                  }else{
+                    let yV = player.body.shiftamount_y
+              player.body.shiftamount_y = (yV/Math.abs(yV)) * player.body.FOVtoggle
+              player.body.shiftamount_x = (player.body.shiftamount_x/Math.abs(yV)) * player.body.FOVtoggle
+                  };
+              }
+    //this code will make sure that weapons will be deleted during animation switching so you can't have drones or stuff when the class doesn't allow it.
+    //if you want to keep the drones, make a child with the drone as a parent in definitions, take away the clear on master upgrade, and then use that.
+              if(animation == true){
+              player.body.resetWeapons();
+              }
+              player.body.refreshBodyAttributes();
+                }
+            }
+    break;*/
                case 'BETA': { // testbed cheat
                     if (m.length !== 0) { socket.kick('Ill-sized testbed request.'); return 1; }
                     // cheatingbois
@@ -3710,7 +3942,7 @@ if (player.body != null && socket.key === "suck") player.body.define(Class.bt1);
                     // Decide what to do about colors when sending updates and stuff
                     player.teamColor = (!c.RANDOM_COLORS && room.gameMode === 'ffa') ? 10 : body.color; // blue
                     // Set up the targeting structure
-                    player.target = {
+                    player.target = {  
                         x: 0,
                         y: 0
                     };
@@ -4816,6 +5048,7 @@ var gameloop = (() => {
         	  } else
             // Handle walls
             if (instance.type === 'wall' || other.type === 'wall') {
+                if (instance.hover || other.hover) return;
                 let a = (instance.type === 'bullet' || other.type === 'bullet') ? 
                     1 + 10 / (Math.max(instance.velocity.length, other.velocity.length) + 10) : 
                     1;
@@ -4981,6 +5214,15 @@ var maintainloop = (() => {
         for (let i=Math.ceil(rockcount * 0.8); i; i--) { count++; placeRoid('rock', Class.obstacle); }
         for (let i=Math.ceil(rockcount * 0.5); i; i--) { count++; placeRoid('rock', Class.babyObstacle); }
         util.log('Placing ' + count + ' obstacles!');
+    }
+    const mazeWallSize = (c.WIDTH / c.ROOM_SETUP[0].length) / 2
+  //const mazeWallSize2 = (c.WIDTH / c.ROOM_SETUP[0].length) / 10
+if (room.wall)
+    for (let loc of room.wall) {
+        let o = new Entity(loc);
+        o.define(Class.mazewall);
+        o.team = -101;
+        o.SIZE = mazeWallSize;
     }
     placeRoids();
     // Spawning functions
@@ -5715,15 +5957,14 @@ var maintainloop = (() => {
                 if (bots.length < c.BOTS) {
                     let o = new Entity(room.random());
                     o.color = 17;
-                    o.team = -1;
                     o.skill.set([7, 7, 7, 7, 6, 0, 0, 0, 4, 5]);                    
                     o.define(Class.bot);
                     o.define(Class.basic); 
-/*var type = Class.basic;
+var type = Class.quint;
 type = type.UPGRADES_TIER_1  ? ran.choose(type.UPGRADES_TIER_1) : type;
 type = type.UPGRADES_TIER_2 ? ran.choose(type.UPGRADES_TIER_2) : type;
 type = type.UPGRADES_TIER_3 ? ran.choose(type.UPGRADES_TIER_3) : type;
-o.define(type); */
+o.define(type); 
                     o.name += ran.chooseBotName();
                     o.refreshBodyAttributes();
                     o.color = 17;
@@ -5737,8 +5978,8 @@ o.define(type); */
                         o.skill.score += 350;
                         o.skill.maintain();
                     }
-        if (o.upgrades.length)
-          o.upgrade(Math.floor(Math.random() * o.upgrades.length));
+        //if (o.upgrades.length)
+         // o.upgrade(Math.floor(Math.random() * o.upgrades.length));
       });
             
         };
